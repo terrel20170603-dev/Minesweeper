@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Minesweeper</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+
+    body {
+        background: radial-gradient(1300px 850px at 50% 18%, #2e3f6e, #161c38 55%, #0b0f22);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 14px;
+        font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+        font-size: 12px;
+        padding: 12px 12px 56px;
+    }
+
+    .frame {
+        background: #cdd2da;
+        border-radius: 18px;
+        box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 12px 28px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.55);
+        padding: 3px;
+        max-width: 100%;
+    }
+
+    .menubar { display: flex; padding: 1px 2px; margin-bottom: 2px; position: relative; }
+
+    .menu-item { padding: 3px 8px; cursor: default; color: #000; border-radius: 6px; }
+
+    .menu-item:hover, .menu-item.open { background: #2a5298; color: #fff; }
+
+    .dropdown {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        background: #c0c0c0;
+        border: 2px solid;
+        border-color: #fff #808080 #808080 #fff;
+        box-shadow: 0 12px 30px rgba(0,0,0,.45), 0 3px 8px rgba(0,0,0,.3);
+        border-radius: 10px;
+        min-width: 190px;
+        z-index: 50;
+    }
+
+    .dropdown.show { display: block; }
+
+    .dropdown .mi { padding: 5px 22px 5px 24px; position: relative; white-space: nowrap; cursor: default; }
+
+    .dropdown .mi:hover { background: #000080; color: #fff; }
+
+    .dropdown .mi .check { position: absolute; left: 6px; }
+    .dropdown .mi .key { position: absolute; right: 8px; opacity: .7; }
+
+    .dropdown .sep { height: 0; border-top: 1px solid #808080; border-bottom: 1px solid #fff; margin: 3px 2px; }
+
+    .top-panel {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #c4c9d2;
+        border-radius: 12px;
+        box-shadow: inset 0 2px 7px rgba(0,0,0,.28), 0 1px 0 rgba(255,255,255,.45);
+        padding: 6px 8px;
+        margin: 0 3px 6px;
+    }
+
+    .lcd {
+        background: #000;
+        border: none;
+        border-radius: 7px;
+        box-shadow: inset 0 2px 6px rgba(0,0,0,.85), 0 1px 1px rgba(255,255,255,.35), 0 0 8px rgba(255,40,40,.25);
+        display: flex;
+        padding: 1px 3px;
+        line-height: 0;
+    }
+
+    .lcd svg { display: block; }
+
+    .face {
+        width: 36px;
+        height: 36px;
+        background: linear-gradient(145deg, #eaeaea, #b2b6bd);
+        border: none;
+        border-radius: 50%;
+        box-shadow: 2px 3px 7px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.65);
+        cursor: pointer;
+        padding: 0;
+        line-height: 0;
+        transition: transform .1s ease;
+    }
+
+    .face:hover { transform: scale(1.06); }
+
+    .face:active, .face.pressed { box-shadow: inset 2px 3px 7px rgba(0,0,0,.5); transform: scale(.94); }
+    .face img { display: block; width: 26px; height: 26px; margin: 2px; image-rendering: pixelated; }
+
+    .board-wrap {
+        background: #b7bcc6;
+        border-radius: 12px;
+        box-shadow: inset 0 3px 12px rgba(0,0,0,.35);
+        margin: 0 3px 4px;
+        padding: 6px;
+        overflow: auto;
+        max-width: calc(100vw - 40px);
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .board { display: grid; gap: 2px; background: transparent; width: max-content; }
+
+    .cell {
+        width: var(--cs, 26px);
+        height: var(--cs, 26px);
+        background: linear-gradient(145deg, #dcdcdc, #a9adb4);
+        border: none;
+        border-radius: 7px;
+        box-shadow: 2px 3px 5px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: calc(var(--cs, 26px) * .62);
+        font-family: Tahoma, sans-serif;
+        cursor: default;
+        line-height: 1;
+        transition: transform .08s ease, box-shadow .08s ease, background .08s ease;
+    }
+
+    .cell:not(.open):hover {
+        transform: translateY(-1px);
+        box-shadow: 3px 5px 9px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.7);
+    }
+
+    .cell.open {
+        background: linear-gradient(145deg, #c0c4cb, #adb1b8);
+        box-shadow: inset 2px 3px 7px rgba(0,0,0,.28), inset -1px -1px 1px rgba(255,255,255,.35);
+    }
+
+    .cell.boom {
+        background: radial-gradient(circle at 35% 30%, #ff6b6b, #a80000);
+        box-shadow: 0 0 16px rgba(255,45,45,.85), 0 3px 8px rgba(0,0,0,.4);
+    }
+
+    .cell img { display: block; width: calc(var(--cs, 26px) * .68); height: calc(var(--cs, 26px) * .68); image-rendering: pixelated; }
+
+    @keyframes cellpop {
+        from { transform: scale(.6); opacity: .3; }
+        to   { transform: scale(1); opacity: 1; }
+    }
+
+    .cell.open span, .cell.open svg, .cell:not(.open) svg { animation: cellpop .12s ease-out; }
+
+    .n1 { color: #0000ff; }
+    .n2 { color: #008000; }
+    .n3 { color: #ff0000; }
+    .n4 { color: #000080; }
+    .n5 { color: #800000; }
+    .n6 { color: #008080; }
+    .n7 { color: #000000; }
+    .n8 { color: #808080; }
+
+    .dlg-mask {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,.25);
+        z-index: 100;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .dlg-mask.show { display: flex; }
+
+    .dlg {
+        background: #cdd2da;
+        border: none;
+        border-radius: 14px;
+        box-shadow: 0 24px 60px rgba(0,0,0,.6), 0 8px 20px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.55);
+        padding: 12px;
+        min-width: 260px;
+    }
+
+    .dlg h3 { font-size: 13px; margin-bottom: 10px; }
+
+    .dlg .row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .dlg .row label { width: 88px; }
+
+    .dlg input[type=number] {
+        width: 90px;
+        padding: 4px 8px;
+        font-size: 13px;
+        border: none;
+        border-radius: 8px;
+        box-shadow: inset 1px 2px 5px rgba(0,0,0,.25);
+        background: #fff;
+        font-family: inherit;
+        outline: none;
+    }
+
+    .dlg .btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+
+    .btn {
+        min-width: 74px;
+        padding: 6px 12px;
+        background: linear-gradient(145deg, #eaeaea, #b2b6bd);
+        border: none;
+        border-radius: 10px;
+        box-shadow: 1px 2px 5px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.6);
+        font-family: inherit;
+        font-size: 12px;
+        cursor: pointer;
+    }
+
+    .btn:active { box-shadow: inset 2px 3px 6px rgba(0,0,0,.4); }
+
+    .best-table { border-collapse: separate; border-spacing: 3px; margin-bottom: 6px; }
+
+    .best-table td { border: none; border-radius: 8px; padding: 4px 12px; background: rgba(255,255,255,.75); box-shadow: 1px 2px 4px rgba(0,0,0,.2); min-width: 70px; }
+
+    .best-table td:first-child { background: #a9adb4; color: #000; text-align: center; }
+
+    .titlebar {
+        display: flex;
+        align-items: center;
+        background: linear-gradient(90deg, #1e3c72, #2a5298 55%, #4776b9);
+        color: #fff;
+        font-weight: 700;
+        font-size: 12px;
+        padding: 5px 5px 5px 10px;
+        margin-bottom: 3px;
+        border-radius: 15px 15px 0 0;
+        cursor: default;
+        user-select: none;
+        box-shadow: 0 2px 6px rgba(0,0,0,.25);
+    }
+
+    .titlebar .tbtns { margin-left: auto; display: flex; gap: 2px; }
+
+    .tbtn {
+        width: 20px;
+        height: 18px;
+        background: linear-gradient(145deg, #e8e8e8, #b5b5b5);
+        border: none;
+        border-radius: 5px;
+        box-shadow: 1px 1px 3px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.6);
+        color: #000;
+        font-size: 11px;
+        line-height: 18px;
+        text-align: center;
+        cursor: default;
+    }
+
+    .tbtn:active { border-color: #808080 #fff #fff #808080; }
+
+    .taskbar {
+        position: fixed;
+        left: 0; right: 0; bottom: 0;
+        height: 38px;
+        background: rgba(203, 208, 216, .9);
+        backdrop-filter: blur(8px);
+        border-top: none;
+        box-shadow: 0 -4px 18px rgba(0,0,0,.4);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px;
+        z-index: 90;
+    }
+
+    .start {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 12px;
+        background: linear-gradient(145deg, #eaeaea, #b2b6bd);
+        border: none;
+        border-radius: 16px;
+        box-shadow: 1px 2px 5px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.6);
+        font-weight: 700;
+        color: #000;
+        cursor: default;
+    }
+
+    .start:active { box-shadow: inset 2px 3px 6px rgba(0,0,0,.45); }
+
+    .task-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 14px;
+        background: rgba(255,255,255,.45);
+        border: none;
+        border-radius: 16px;
+        box-shadow: inset 1px 2px 4px rgba(0,0,0,.2);
+        font-weight: 700;
+        color: #000;
+        cursor: default;
+    }
+
+    .task-item img { width: 14px; height: 14px; image-rendering: pixelated; }
+
+    .task-item.inactive { opacity: .55; box-shadow: inset 2px 3px 7px rgba(0,0,0,.4); background: rgba(255,255,255,.25); }
+
+    .code-frame {
+        max-width: min(780px, 94vw);
+        margin-left: 16px;
+    }
+
+    .code-title { background: linear-gradient(90deg, #0f172a, #1e293b 55%, #334155); }
+
+    .code-actions {
+        display: flex;
+        justify-content: flex-end;
+        padding: 4px 10px 2px;
+    }
+
+    .run-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 26px;
+        background: linear-gradient(145deg, #43b055, #2b7a3f);
+        border: none;
+        border-radius: 12px;
+        box-shadow: 2px 3px 8px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.35);
+        color: #fff;
+        font-weight: 700;
+        font-size: 13px;
+        font-family: inherit;
+        cursor: pointer;
+        transition: transform .1s ease, box-shadow .1s ease;
+    }
+
+    .run-btn:hover { transform: translateY(-1px); box-shadow: 3px 5px 12px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.4); }
+
+    .run-btn:active { transform: scale(.96); box-shadow: inset 2px 3px 6px rgba(0,0,0,.4); }
+
+    .code-view {
+        display: block;
+        margin: 6px;
+        width: calc(100% - 12px);
+        height: 52vh;
+        background: #101418;
+        color: #d4d4d4;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 11px;
+        line-height: 1.5;
+        border: none;
+        border-radius: 10px;
+        padding: 14px 16px;
+        resize: vertical;
+        overflow: auto;
+        box-shadow: inset 0 2px 12px rgba(0,0,0,.55);
+        user-select: text;
+        -webkit-user-select: text;
+        outline: none;
+    }
+
+    .code-view:focus { box-shadow: inset 0 2px 12px rgba(0,0,0,.55), 0 0 0 2px rgba(63, 163, 77, .5); }
+
+    body.night .code-title { background: linear-gradient(90deg, #0b1220, #16233a 55%, #24344f); }
+
+    #previewBody { margin: 4px 6px 6px; }
+
+    #previewBody iframe {
+        display: block;
+        width: min(78vw, 760px);
+        height: 540px;
+        border: none;
+        border-radius: 10px;
+        background: transparent;
+        box-shadow: inset 0 2px 12px rgba(0,0,0,.3);
+    }
+
+    .toast {
+        position: fixed;
+        left: 50%;
+        bottom: 56px;
+        transform: translateX(-50%) translateY(16px);
+        background: rgba(20, 24, 32, .92);
+        color: #fff;
+        font-size: 13px;
+        padding: 10px 22px;
+        border-radius: 22px;
+        box-shadow: 0 8px 24px rgba(0,0,0,.5);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .25s ease, transform .25s ease;
+        z-index: 200;
+    }
+
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    .frame.maximized {
+        position: fixed !important;
+        left: 0 !important;
+        top: 0 !important;
+        right: 0;
+        bottom: 46px;
+        width: auto;
+        max-width: none;
+        margin: 0 !important;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    .frame.maximized .titlebar { border-radius: 0; }
+
+    .clock {
+        margin-left: auto;
+        border: none;
+        border-radius: 16px;
+        padding: 3px 14px;
+        color: #000;
+        background: rgba(255,255,255,.5);
+        box-shadow: inset 1px 2px 4px rgba(0,0,0,.2);
+    }
+
+    .cell.pressed {
+        background: #9aa0a8;
+        box-shadow: inset 2px 3px 7px rgba(0,0,0,.45);
+        border-radius: 7px;
+    }
+
+    @keyframes quake {
+        0%, 100% { transform: translate(0, 0); }
+        20% { transform: translate(-6px, 3px); }
+        40% { transform: translate(5px, -4px); }
+        60% { transform: translate(-4px, 2px); }
+        80% { transform: translate(3px, -2px); }
+    }
+
+    .frame.quake { animation: quake .45s ease-out; }
+
+    body.night .titlebar { background: linear-gradient(90deg, #14243f, #1f3f6e 55%, #2c5aa0); }
+    body.night .tbtn { background: linear-gradient(145deg, #3a404c, #232830); color: #ddd; box-shadow: 1px 1px 3px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.1); }
+    body.night .taskbar { background: rgba(30, 34, 43, .92); box-shadow: 0 -4px 18px rgba(0,0,0,.6); }
+    body.night .start { background: linear-gradient(145deg, #3a404c, #232830); color: #ddd; box-shadow: 1px 2px 5px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.1); }
+    body.night .clock { background: rgba(0,0,0,.4); color: #ddd; box-shadow: inset 1px 2px 4px rgba(0,0,0,.5); }
+    body.night .cell.pressed { background: #191d25; box-shadow: inset 2px 3px 8px rgba(0,0,0,.6); }
+
+    body.night { background: radial-gradient(1300px 850px at 50% 18%, #17202e, #0e1420 55%, #070a12); }
+
+    body.night .frame { background: #2a2f3a; box-shadow: 0 30px 80px rgba(0,0,0,.75), 0 12px 28px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.08); }
+
+    body.night .menu-item { color: #ddd; }
+    body.night .menu-item:hover, body.night .menu-item.open { background: #2a5298; color: #fff; }
+
+    body.night .dropdown { background: #2a2f3a; }
+    body.night .dropdown .mi { color: #ddd; }
+    body.night .dropdown .mi:hover { background: #2a5298; color: #fff; }
+
+    body.night .top-panel { background: #20242d; box-shadow: inset 0 2px 7px rgba(0,0,0,.55); }
+    body.night .board-wrap { background: #171a22; box-shadow: inset 0 3px 12px rgba(0,0,0,.55); }
+    body.night .board { background: transparent; }
+    body.night .cell { background: linear-gradient(145deg, #3d434f, #242832); box-shadow: 2px 3px 6px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.08); }
+    body.night .cell:not(.open):hover { box-shadow: 3px 5px 10px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.12); }
+    body.night .cell.open { background: linear-gradient(145deg, #262b35, #1b1f27); box-shadow: inset 2px 3px 8px rgba(0,0,0,.55); }
+    body.night .cell.boom { background: radial-gradient(circle at 35% 30%, #ff5252, #7d0000); }
+    body.night .face { background: linear-gradient(145deg, #3a404c, #232830); box-shadow: 2px 3px 7px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.12); }
+
+    body.night .n1 { color: #5c9dff; }
+    body.night .n2 { color: #6fd66f; }
+    body.night .n4 { color: #9db9ff; }
+    body.night .n6 { color: #4fc3c3; }
+    body.night .n7 { color: #eeeeee; }
+
+    body.night .dlg { background: #2a2f3a; color: #ddd; box-shadow: 0 24px 60px rgba(0,0,0,.75), 0 8px 20px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.08); }
+    body.night .dlg h3 { color: #eee; }
+    body.night .dlg input[type=number] { background: #1b1f27; color: #eee; box-shadow: inset 1px 2px 5px rgba(0,0,0,.6); }
+    body.night .btn { background: linear-gradient(145deg, #3a404c, #232830); color: #ddd; box-shadow: 1px 2px 5px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.1); }
+    body.night .best-table td { background: rgba(0,0,0,.35); color: #ddd; }
+    body.night .best-table td:first-child { background: #3a404c; color: #ddd; }
+</style>
+</head>
+<body>
+    <div class="frame">
+        <div class="titlebar" id="titlebar">
+            <span>Minesweeper</span>
+            <div class="tbtns">
+                <span class="tbtn" id="tMin" title="Minimize">_</span>
+                <span class="tbtn" id="tMax" title="Maximize / Restore">□</span>
+                <span class="tbtn" id="tClose" title="Close (reopen from taskbar)">✕</span>
+            </div>
+        </div>
+        <div class="menubar">
+            <div class="menu-item" id="menuGame">Game(G)</div>
+            <div class="dropdown" id="gameMenu">
+                <div class="mi" data-act="new">New(N)<span class="key">F2</span></div>
+                <div class="sep"></div>
+                <div class="mi" data-diff="beginner"><span class="check">✓</span>Beginner(B)  9x9, 10 mines</div>
+                <div class="mi" data-diff="intermediate"><span class="check"></span>Intermediate(I)  16x16, 40 mines</div>
+                <div class="mi" data-diff="expert"><span class="check"></span>Expert(E)  30x16, 99 mines</div>
+                <div class="mi" data-act="custom">Custom(C)...</div>
+                <div class="sep"></div>
+                <div class="mi" data-act="best">Best Times(T)...</div>
+                <div class="mi" data-act="stats">Statistics(P)...</div>
+                <div class="sep"></div>
+                <div class="mi" data-act="sound"><span class="check" id="sndChk">✓</span>Sounds(U)</div>
+                <div class="mi" data-act="night"><span class="check" id="ngtChk"></span>Night Mode(D)</div>
+            </div>
+        </div>
+        <div class="top-panel">
+            <div class="lcd" id="mineLcd"></div>
+            <button class="face" id="face" title="New Game (F2)"></button>
+            <div class="lcd" id="timeLcd"></div>
+        </div>
+        <div class="board-wrap">
+            <div class="board" id="board"></div>
+        </div>
+    </div>
+
+    <div class="dlg-mask" id="customMask">
+        <div class="dlg">
+            <h3>Custom Minesweeper</h3>
+            <div class="row"><label>Height (rows):</label><input type="number" id="cRows" min="8" max="24" value="16"></div>
+            <div class="row"><label>Width (cols):</label><input type="number" id="cCols" min="8" max="30" value="30"></div>
+            <div class="row"><label>Mines:</label><input type="number" id="cMines" min="10" max="668" value="99"></div>
+            <div class="btns">
+                <button class="btn" id="cOk">OK</button>
+                <button class="btn" id="cCancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="dlg-mask" id="bestMask">
+        <div class="dlg">
+            <h3>Best Times</h3>
+            <table class="best-table">
+                <tr><td>Beginner</td><td id="bBeg">999</td><td id="nBeg">Anonymous</td></tr>
+                <tr><td>Intermediate</td><td id="bInt">999</td><td id="nInt">Anonymous</td></tr>
+                <tr><td>Expert</td><td id="bExp">999</td><td id="nExp">Anonymous</td></tr>
+            </table>
+            <div class="btns">
+                <button class="btn" id="bReset">Reset scores</button>
+                <button class="btn" id="bClose">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="dlg-mask" id="statsMask">
+        <div class="dlg">
+            <h3>Statistics</h3>
+            <table class="best-table">
+                <tr><td>Played</td><td id="sPlayed">0</td></tr>
+                <tr><td>Won</td><td id="sWon">0</td></tr>
+                <tr><td>Win rate</td><td id="sRate">0%</td></tr>
+                <tr><td>Streak</td><td id="sStreak">0</td></tr>
+                <tr><td>Best streak</td><td id="sBest">0</td></tr>
+            </table>
+            <div class="btns">
+                <button class="btn" id="sReset">Reset</button>
+                <button class="btn" id="sClose">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="dlg-mask" id="winMask">
+        <div class="dlg">
+            <h3 id="winTitle">Minesweeper</h3>
+            <div class="row" id="winNameRow"><label>Name:</label><input id="winName" style="width:130px" value="Anonymous"></div>
+            <div class="btns">
+                <button class="btn" id="winOk">OK</button>
+                <button class="btn" id="winNo">Skip</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="frame code-frame" id="codeFrame" style="display:none">
+        <div class="titlebar code-title">
+            <span>Minesweeper Source - index.html</span>
+            <div class="tbtns">
+                <span class="tbtn" id="codeMin" title="Minimize">_</span>
+                <span class="tbtn" id="codeClose" title="Close">✕</span>
+            </div>
+        </div>
+        <div class="code-actions">
+            <button class="run-btn" id="runBtn">▶ Run Code</button>
+        </div>
+        <textarea id="codeView" class="code-view" spellcheck="false" autocomplete="off">Loading source...</textarea>
+    </div>
+
+    <div class="frame" id="previewFrame" style="display:none">
+        <div class="titlebar" id="previewTitle">
+            <span id="previewName">unnamed</span>
+            <div class="tbtns">
+                <span class="tbtn" id="previewClose" title="Close preview">✕</span>
+            </div>
+        </div>
+        <div id="previewBody"></div>
+    </div>
+
+    <div class="taskbar">
+        <div class="start" id="startBtn"><span style="color:#c8342a">⊞</span> Start</div>
+        <div class="task-item" id="taskItem" title="Show / hide the Minesweeper window">Minesweeper</div>
+        <div class="task-item" id="taskCode" title="Show / hide the Source Code window">Source Code</div>
+        <div class="clock" id="clock">--:--</div>
+    </div>
+
+<script>
+    const DIFFS = {
+        beginner: { rows: 9, cols: 9, mines: 10, label: "beginner" },
+        intermediate: { rows: 16, cols: 16, mines: 40, label: "intermediate" },
+        expert: { rows: 16, cols: 30, mines: 99, label: "expert" }
+    };
+
+    const NUM_COLOR = { 1: "n1", 2: "n2", 3: "n3", 4: "n4", 5: "n5", 6: "n6", 7: "n7", 8: "n8" };
+
+    let cfg = Object.assign({}, DIFFS.beginner);
+    let rows, cols, mines, total;
+    let mineArr, openArr, flagArr;
+    let started, over, timerId, seconds, openedCount, flags;
+
+    let soundOn = true, nightOn = false;
+    try { soundOn = localStorage.getItem("mop_sound") !== "0"; } catch (e) {}
+    try { nightOn = localStorage.getItem("mop_night") === "1"; } catch (e) {}
+
+    const $ = id => document.getElementById(id);
+    const boardEl = $("board");
+
+    const SEG = {
+        "0": "abcdef", "1": "bc", "2": "abged", "3": "abgcd", "4": "fgbc",
+        "5": "afgcd", "6": "afgedc", "7": "abc", "8": "abcdefg", "9": "abfgcd",
+        "-": "g", " ": ""
+    };
+    const SEG_PTS = {
+        a: "2,1 11,1 9,3 4,3", b: "12,2 12,11 10,9 10,4", c: "12,12 12,21 10,19 10,14",
+        d: "2,22 11,22 9,20 4,20", e: "1,12 1,21 3,19 3,14", f: "1,2 1,11 3,9 3,4",
+        g: "2,11 11,11 10,12.5 3,12.5"
+    };
+
+    let actx = null;
+
+    function beep(f, d, type, vol) {
+        if (!soundOn) return;
+        try {
+            actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+            const o = actx.createOscillator(), g = actx.createGain();
+            o.type = type || "square";
+            o.frequency.value = f;
+            g.gain.setValueAtTime(vol || 0.04, actx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + d);
+            o.connect(g); g.connect(actx.destination);
+            o.start(); o.stop(actx.currentTime + d);
+        } catch (e) {}
+    }
+
+    function sOpen() { beep(520, .06, "square", .03); }
+    function sFlag() { beep(880, .07, "square", .045); }
+    function sBoom() { beep(130, .3, "sawtooth", .1); beep(60, .45, "sine", .1); }
+    function sWin() { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, .16, "triangle", .06), i * 130)); }
+
+    function digitSvg(ch) {
+        const on = SEG[ch] || "";
+        let s = '<svg width="16" height="26" viewBox="0 0 13 23">';
+        for (const k in SEG_PTS) {
+            s += '<polygon points="' + SEG_PTS[k] + '" shape-rendering="crispEdges" fill="' + (on.indexOf(k) > -1 ? "#ff0000" : "#3a0000") + '"/>';
+        }
+        return s + "</svg>";
+    }
+
+    function renderLcd(el, val) {
+        let v = Math.max(-99, Math.min(999, val));
+        let str;
+        if (v < 0) str = "-" + String(Math.abs(v)).padStart(2, "0");
+        else str = String(v).padStart(3, "0");
+        el.innerHTML = digitSvg(str[0]) + digitSvg(str[1]) + digitSvg(str[2]);
+    }
+
+    function px(w, h, draw) {
+        const c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        const g = c.getContext("2d");
+        draw(g);
+        return c.toDataURL();
+    }
+
+    function disc(g, w, h, cx, cy, r, col) {
+        g.fillStyle = col;
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+            const dx = x + 0.5 - cx, dy = y + 0.5 - cy;
+            if (dx * dx + dy * dy <= r * r) g.fillRect(x, y, 1, 1);
+        }
+    }
+
+    function drawMine(g, blow) {
+        g.fillStyle = "#000";
+        for (let i = 3; i < 13; i++) { g.fillRect(i, 7, 1, 2); g.fillRect(7, i, 2, 1); }
+        for (let k = 4; k < 12; k++) { g.fillRect(k, k, 1, 1); g.fillRect(15 - k, k, 1, 1); }
+        disc(g, 16, 16, 8, 8, 4.9, "#000");
+        if (!blow) {
+            g.fillStyle = "#fff";
+            g.fillRect(5, 5, 2, 2);
+            g.fillRect(7, 4, 1, 1);
+            g.fillRect(4, 7, 1, 1);
+        }
+    }
+
+    const URL_MINE = px(16, 16, g => drawMine(g, false));
+    const URL_BOOM = px(16, 16, g => drawMine(g, true));
+
+    const URL_CROSS = px(16, 16, g => {
+        drawMine(g, true);
+        g.fillStyle = "#ff0000";
+        for (let k = 3; k < 13; k++) { g.fillRect(k, k, 1, 1); g.fillRect(15 - k, k, 1, 1); }
+    });
+
+    const IMG = u => '<img src="' + u + '">';
+
+    const URL_FLAG = px(16, 16, g => {
+        g.fillStyle = "#000";
+        g.fillRect(9, 1, 1, 11);
+        g.fillRect(4, 13, 9, 1);
+        g.fillRect(5, 12, 7, 1);
+        g.fillStyle = "#e30000";
+        for (let y = 0; y < 7; y++) g.fillRect(3, 1 + y, 6 - y, 1);
+        g.fillStyle = "#000";
+        g.fillRect(2, 1, 1, 7);
+        g.fillRect(8, 1, 1, 1);
+        g.fillRect(7, 2, 1, 1);
+        g.fillRect(6, 3, 1, 1);
+        g.fillRect(5, 4, 1, 1);
+        g.fillRect(4, 5, 1, 1);
+        g.fillRect(3, 6, 1, 1);
+        g.fillRect(2, 7, 1, 1);
+    });
+
+    const FACE_URLS = {};
+    ["normal", "oh", "dead", "cool"].forEach(state => {
+        FACE_URLS[state] = px(26, 26, g => {
+            disc(g, 26, 26, 13, 13, 12.4, "#ffff00");
+            disc(g, 26, 26, 13, 13, 12.4, "rgba(0,0,0,0)");
+            g.fillStyle = "#000";
+            for (let y = 0; y < 26; y++) for (let x = 0; x < 26; x++) {
+                const dx = x + 0.5 - 13, dy = y + 0.5 - 13;
+                const d = Math.sqrt(dx * dx + dy * dy);
+                if (d <= 12.4 && d > 11.2) g.fillRect(x, y, 1, 1);
+            }
+            g.fillStyle = "#808000";
+            for (let y = 0; y < 26; y++) for (let x = 0; x < 26; x++) {
+                const dx = x + 0.5 - 13, dy = y + 0.5 - 13;
+                const d = Math.sqrt(dx * dx + dy * dy);
+                if (d <= 11.2 && d > 10.2 && (dx + dy) > 6) g.fillRect(x, y, 1, 1);
+            }
+            g.fillStyle = "#000";
+            if (state === "cool") {
+                g.fillRect(4, 10, 3, 1);
+                g.fillRect(19, 10, 3, 1);
+                g.fillRect(7, 9, 5, 3);
+                g.fillRect(14, 9, 5, 3);
+                g.fillRect(12, 10, 2, 1);
+            } else if (state === "dead") {
+                [[9, 10], [10, 11], [11, 12], [11, 10], [10, 11], [9, 12]].forEach(p => g.fillRect(p[0], p[1], 1, 1));
+                [[15, 10], [16, 11], [17, 12], [17, 10], [16, 11], [15, 12]].forEach(p => g.fillRect(p[0], p[1], 1, 1));
+            } else {
+                g.fillRect(9, 10, 2, 3);
+                g.fillRect(15, 10, 2, 3);
+            }
+            if (state === "oh") {
+                disc(g, 26, 26, 13, 18.5, 2.4, "#000");
+            } else if (state === "dead") {
+                [[8, 19], [9, 18], [10, 17], [11, 17], [12, 16], [13, 16], [14, 17], [15, 17], [16, 18], [17, 19]].forEach(p => g.fillRect(p[0], p[1], 1, 1));
+            } else if (state === "cool") {
+                [[8, 18], [9, 19], [10, 20], [11, 20], [12, 21], [13, 21], [14, 20], [15, 20], [16, 19], [17, 18]].forEach(p => g.fillRect(p[0], p[1], 1, 1));
+            } else {
+                [[8, 17], [9, 18], [10, 19], [11, 19], [12, 20], [13, 20], [14, 19], [15, 19], [16, 18], [17, 17]].forEach(p => g.fillRect(p[0], p[1], 1, 1));
+                g.fillRect(10, 20, 6, 1);
+            }
+        });
+    });
+
+    function setFace(state) {
+        $("face").innerHTML = IMG(FACE_URLS[state]);
+    }
+
+    const DIGIT_PIX = {
+        1: ["..#..", ".##..", "..#..", "..#..", "..#..", "..#..", ".###."],
+        2: [".###.", "#...#", "....#", "...#.", "..#..", ".#...", "#####"],
+        3: [".###.", "#...#", "....#", "..##.", "....#", "#...#", ".###."],
+        4: ["...#.", "..##.", ".#.#.", "#..#.", "#####", "...#.", "...#."],
+        5: ["#####", "#....", "####.", "....#", "....#", "#...#", ".###."],
+        6: ["..##.", ".#...", "#....", "####.", "#...#", "#...#", ".###."],
+        7: ["#####", "....#", "...#.", "..#..", ".#...", ".#...", ".#..."],
+        8: [".###.", "#...#", "#...#", ".###.", "#...#", "#...#", ".###."]
+    };
+
+    const NUM_HEX = { 1: "#0000ff", 2: "#008000", 3: "#ff0000", 4: "#000080", 5: "#800000", 6: "#008080", 7: "#000000", 8: "#808080" };
+    const NUM_HEX_NIGHT = { 1: "#5c9dff", 2: "#6fd66f", 3: "#ff6b6b", 4: "#9db9ff", 5: "#ff8a80", 6: "#4fc3c3", 7: "#eeeeee", 8: "#9a9a9a" };
+
+    function digitBitmap(n, palette) {
+        return px(5, 7, g => {
+            g.fillStyle = palette[n];
+            DIGIT_PIX[n].forEach((row, y) => {
+                for (let x = 0; x < 5; x++) if (row[x] === "#") g.fillRect(x, y, 1, 1);
+            });
+        });
+    }
+
+    const NUM_URLS = {}, NUM_URLS_NIGHT = {};
+    for (let n = 1; n <= 8; n++) {
+        NUM_URLS[n] = digitBitmap(n, NUM_HEX);
+        NUM_URLS_NIGHT[n] = digitBitmap(n, NUM_HEX_NIGHT);
+    }
+
+    function numImg(n) {
+        const u = nightOn ? NUM_URLS_NIGHT[n] : NUM_URLS[n];
+        return '<img src="' + u + '" style="width:calc(var(--cs,26px)*.46);height:calc(var(--cs,26px)*.64)">';
+    }
+
+    function idx(r, c) { return r * cols + c; }
+    function inb(r, c) { return r >= 0 && r < rows && c >= 0 && c < cols; }
+
+    function neighbors(i) {
+        const r = Math.floor(i / cols), c = i % cols, out = [];
+        for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+            if (!dr && !dc) continue;
+            if (inb(r + dr, c + dc)) out.push(idx(r + dr, c + dc));
+        }
+        return out;
+    }
+
+    function layoutBoard() {
+        const avail = Math.min(window.innerWidth - 44, 1400);
+        const size = Math.max(16, Math.min(26, Math.floor((avail - 20) / cols)));
+        boardEl.style.setProperty("--cs", size + "px");
+        boardEl.style.gridTemplateColumns = "repeat(" + cols + ", " + size + "px)";
+    }
+
+    function saveGame() {
+        if (over) return;
+        try {
+            localStorage.setItem("mop_save", JSON.stringify({
+                label: cfg.label, rows: rows, cols: cols, mines: mines,
+                mine: mineArr, open: openArr, flag: flagArr,
+                seconds: seconds, started: started, opened: openedCount
+            }));
+        } catch (e) {}
+    }
+
+    function clearSave() {
+        try { localStorage.removeItem("mop_save"); } catch (e) {}
+    }
+
+    function loadGame() {
+        try {
+            const s = JSON.parse(localStorage.getItem("mop_save") || "null");
+            if (!s || s.over || !Array.isArray(s.mine)) return null;
+            return s;
+        } catch (e) { return null; }
+    }
+
+    function loadStats() {
+        try { return JSON.parse(localStorage.getItem("mop_stats") || "{}"); } catch (e) { return {}; }
+    }
+
+    function saveStats(s) {
+        try { localStorage.setItem("mop_stats", JSON.stringify(s)); } catch (e) {}
+    }
+
+    function bumpStats(win) {
+        const s = loadStats();
+        s.played = (s.played || 0) + 1;
+        if (win) {
+            s.won = (s.won || 0) + 1;
+            s.streak = (s.streak || 0) + 1;
+            s.bestStreak = Math.max(s.bestStreak || 0, s.streak);
+        } else {
+            s.streak = 0;
+        }
+        saveStats(s);
+    }
+
+    function init(resume) {
+        rows = cfg.rows; cols = cfg.cols; mines = cfg.mines; total = rows * cols;
+        mineArr = new Array(total).fill(false);
+        openArr = new Array(total).fill(false);
+        flagArr = new Array(total).fill(0);
+        started = false; over = false; seconds = 0; openedCount = 0;
+        flags = 0;
+        if (timerId) { clearInterval(timerId); timerId = null; }
+
+        let restored = false;
+        if (resume) {
+            const s = loadGame();
+            if (s && s.rows === rows && s.cols === cols && s.mines === mines) {
+                mineArr = s.mine.slice(); openArr = s.open.slice(); flagArr = s.flag.slice();
+                seconds = s.seconds || 0; started = !!s.started; openedCount = s.opened || 0;
+                flags = flagArr.filter(f => f === 1).length;
+                restored = true;
+            } else {
+                clearSave();
+            }
+        } else {
+            clearSave();
+        }
+
+        buildBoard();
+        renderLcd($("mineLcd"), mines - flags);
+        renderLcd($("timeLcd"), seconds);
+        setFace("normal");
+        syncMenuChecks();
+        if (restored && started) startTimer();
+        if (!restored) saveGame();
+    }
+
+    function buildBoard() {
+        layoutBoard();
+        let html = "";
+        for (let i = 0; i < total; i++) html += '<div class="cell" data-i="' + i + '"></div>';
+        boardEl.innerHTML = html;
+        for (let i = 0; i < total; i++) drawCell(i);
+    }
+
+    function placeMines(safe) {
+        const banned = new Set(safe >= 0 ? [safe].concat(neighbors(safe)) : []);
+        let placed = 0;
+        while (placed < mines) {
+            const p = Math.floor(Math.random() * total);
+            if (mineArr[p] || banned.has(p)) continue;
+            mineArr[p] = true;
+            placed++;
+        }
+    }
+
+    function mineCount(i) {
+        let n = 0;
+        neighbors(i).forEach(j => { if (mineArr[j]) n++; });
+        return n;
+    }
+
+    function startTimer() {
+        if (timerId) return;
+        timerId = setInterval(() => {
+            seconds = Math.min(999, seconds + 1);
+            renderLcd($("timeLcd"), seconds);
+            saveGame();
+        }, 1000);
+    }
+
+    function stopTimer() {
+        if (timerId) { clearInterval(timerId); timerId = null; }
+    }
+
+    function drawCell(i) {
+        const el = boardEl.children[i];
+        if (!el) return;
+        if (openArr[i]) {
+            el.className = "cell open";
+            if (mineArr[i]) {
+                el.innerHTML = IMG(URL_BOOM);
+                el.classList.add("boom");
+            } else {
+                const n = mineCount(i);
+                el.innerHTML = n ? numImg(n) : "";
+            }
+        } else if (flagArr[i] === 1) {
+            el.className = "cell";
+            el.innerHTML = IMG(URL_FLAG);
+        } else if (flagArr[i] === 2) {
+            el.className = "cell";
+            el.innerHTML = '<span style="color:#000;font-weight:700">?</span>';
+        } else {
+            el.className = "cell";
+            if (over && mineArr[i] && flagArr[i] !== 1) el.innerHTML = IMG(URL_MINE);
+            else if (over && flagArr[i] === 1 && !mineArr[i]) el.innerHTML = IMG(URL_CROSS);
+            else el.innerHTML = "";
+        }
+    }
+
+    function reveal(i, quiet) {
+        if (over || openArr[i] || flagArr[i] === 1) return;
+        if (!started) {
+            started = true;
+            placeMines(i);
+            startTimer();
+        }
+        if (mineArr[i]) { lose(i); return; }
+        let opened = 0;
+        const stack = [i];
+        while (stack.length) {
+            const p = stack.pop();
+            if (openArr[p] || flagArr[p] === 1 || mineArr[p]) continue;
+            openArr[p] = true;
+            openedCount++;
+            opened++;
+            drawCell(p);
+            if (mineCount(p) === 0) neighbors(p).forEach(j => { if (!openArr[j]) stack.push(j); });
+        }
+        if (opened && !quiet) sOpen();
+        saveGame();
+        checkWin();
+    }
+
+    function chord(i) {
+        if (over || !openArr[i]) return;
+        const ns = neighbors(i);
+        const f = ns.filter(j => flagArr[j] === 1).length;
+        if (f !== mineCount(i)) return;
+        ns.forEach(j => { if (flagArr[j] !== 1 && !openArr[j]) reveal(j, true); });
+        if (!over) sOpen();
+    }
+
+    function cycleFlag(i) {
+        if (over || openArr[i]) return;
+        if (!started) {
+            started = true;
+            placeMines(-1);
+            startTimer();
+        }
+        flagArr[i] = (flagArr[i] + 1) % 3;
+        flags = flagArr.filter(f => f === 1).length;
+        renderLcd($("mineLcd"), mines - flags);
+        drawCell(i);
+        sFlag();
+        saveGame();
+    }
+
+    function lose(hit) {
+        over = true;
+        stopTimer();
+        clearSave();
+        setFace("dead");
+        sBoom();
+        const frameEl = document.querySelector(".frame");
+        if (frameEl) {
+            frameEl.classList.add("quake");
+            setTimeout(() => frameEl.classList.remove("quake"), 500);
+        }
+        mineArr.forEach((m, i) => {
+            if (m && flagArr[i] !== 1) { openArr[i] = true; drawCell(i); }
+            if (!m && flagArr[i] === 1) drawCell(i);
+        });
+        const el = boardEl.children[hit];
+        if (el) el.classList.add("boom");
+        bumpStats(false);
+    }
+
+    function checkWin() {
+        if (openedCount !== total - mines) return;
+        over = true;
+        stopTimer();
+        clearSave();
+        setFace("cool");
+        sWin();
+        mineArr.forEach((m, i) => {
+            if (m && flagArr[i] !== 1) { flagArr[i] = 1; drawCell(i); }
+        });
+        flags = mines;
+        renderLcd($("mineLcd"), 0);
+        bumpStats(true);
+        const best = loadBest();
+        const cur = best[cfg.label];
+        if (!cur || seconds < cur.time) {
+            $("winTitle").textContent = "You finished in " + seconds + " seconds, a new " + diffName(cfg.label) + " record! Enter your name:";
+            $("winNameRow").style.display = "flex";
+            $("winMask").classList.add("show");
+            $("winName").value = cur ? cur.name : "Anonymous";
+            $("winName").focus();
+            $("winOk").dataset.time = seconds;
+            $("winOk").dataset.diff = cfg.label;
+        }
+    }
+
+    function diffName(k) {
+        return { beginner: "Beginner", intermediate: "Intermediate", expert: "Expert" }[k] || "Custom";
+    }
+
+    function loadBest() {
+        try { return JSON.parse(localStorage.getItem("mop_best") || "{}"); } catch (e) { return {}; }
+    }
+
+    function saveBest(b) {
+        try { localStorage.setItem("mop_best", JSON.stringify(b)); } catch (e) {}
+    }
+
+    function showBest() {
+        const b = loadBest();
+        $("bBeg").textContent = b.beginner ? b.beginner.time : 999;
+        $("nBeg").textContent = b.beginner ? b.beginner.name : "Anonymous";
+        $("bInt").textContent = b.intermediate ? b.intermediate.time : 999;
+        $("nInt").textContent = b.intermediate ? b.intermediate.name : "Anonymous";
+        $("bExp").textContent = b.expert ? b.expert.time : 999;
+        $("nExp").textContent = b.expert ? b.expert.name : "Anonymous";
+        $("bestMask").classList.add("show");
+    }
+
+    function showStats() {
+        const s = loadStats();
+        $("sPlayed").textContent = s.played || 0;
+        $("sWon").textContent = s.won || 0;
+        $("sRate").textContent = s.played ? Math.round((s.won || 0) / s.played * 100) + "%" : "0%";
+        $("sStreak").textContent = s.streak || 0;
+        $("sBest").textContent = s.bestStreak || 0;
+        $("statsMask").classList.add("show");
+    }
+
+    function setDiff(key) {
+        cfg = Object.assign({}, DIFFS[key]);
+        init(false);
+    }
+
+    function syncMenuChecks() {
+        document.querySelectorAll("#gameMenu .mi[data-diff]").forEach(mi => {
+            mi.querySelector(".check").textContent = (cfg.label === mi.dataset.diff) ? "✓" : "";
+        });
+        $("sndChk").textContent = soundOn ? "✓" : "";
+        $("ngtChk").textContent = nightOn ? "✓" : "";
+    }
+
+    function applyNight() {
+        document.body.classList.toggle("night", nightOn);
+    }
+
+    const menuBtn = $("menuGame"), menuBox = $("gameMenu");
+    menuBtn.addEventListener("click", e => {
+        e.stopPropagation();
+        menuBox.classList.toggle("show");
+        menuBtn.classList.toggle("open");
+    });
+    document.addEventListener("click", () => {
+        menuBox.classList.remove("show");
+        menuBtn.classList.remove("open");
+    });
+    menuBox.addEventListener("click", e => {
+        e.stopPropagation();
+        const mi = e.target.closest(".mi");
+        if (!mi) return;
+        menuBox.classList.remove("show");
+        menuBtn.classList.remove("open");
+        if (mi.dataset.diff) setDiff(mi.dataset.diff);
+        else if (mi.dataset.act === "new") init(false);
+        else if (mi.dataset.act === "custom") {
+            $("cRows").value = cfg.rows; $("cCols").value = cfg.cols; $("cMines").value = cfg.mines;
+            $("customMask").classList.add("show");
+        }
+        else if (mi.dataset.act === "best") showBest();
+        else if (mi.dataset.act === "stats") showStats();
+        else if (mi.dataset.act === "sound") {
+            soundOn = !soundOn;
+            try { localStorage.setItem("mop_sound", soundOn ? "1" : "0"); } catch (e) {}
+            syncMenuChecks();
+        }
+        else if (mi.dataset.act === "night") {
+            nightOn = !nightOn;
+            try { localStorage.setItem("mop_night", nightOn ? "1" : "0"); } catch (e) {}
+            applyNight();
+            syncMenuChecks();
+        }
+    });
+
+    $("cOk").addEventListener("click", () => {
+        const r = parseInt($("cRows").value, 10), c = parseInt($("cCols").value, 10), m = parseInt($("cMines").value, 10);
+        if (!(r >= 8 && r <= 24 && c >= 8 && c <= 30 && m >= 10 && m <= 668 && m < r * c - 9)) {
+            alert("Range: rows 8-24, cols 8-30, mines 10-668, and mines < cells-9");
+            return;
+        }
+        cfg = { rows: r, cols: c, mines: m, label: "custom" };
+        $("customMask").classList.remove("show");
+        init(false);
+    });
+    $("cCancel").addEventListener("click", () => $("customMask").classList.remove("show"));
+
+    $("bClose").addEventListener("click", () => $("bestMask").classList.remove("show"));
+    $("bReset").addEventListener("click", () => { saveBest({}); showBest(); });
+
+    $("sClose").addEventListener("click", () => $("statsMask").classList.remove("show"));
+    $("sReset").addEventListener("click", () => { saveStats({}); showStats(); });
+
+    $("winOk").addEventListener("click", function () {
+        const b = loadBest();
+        b[this.dataset.diff] = { time: parseInt(this.dataset.time, 10), name: $("winName").value.trim() || "Anonymous" };
+        saveBest(b);
+        $("winMask").classList.remove("show");
+    });
+    $("winNo").addEventListener("click", () => $("winMask").classList.remove("show"));
+
+    $("face").addEventListener("click", () => init(false));
+    document.addEventListener("keydown", e => { if (e.key === "F2") { e.preventDefault(); init(false); } });
+    window.addEventListener("resize", () => { layoutBoard(); });
+
+    let downL = false, downR = false;
+    boardEl.addEventListener("contextmenu", e => e.preventDefault());
+
+    boardEl.addEventListener("mousedown", e => {
+        if (over) return;
+        const cell = e.target.closest(".cell");
+        if (!cell) return;
+        if (e.button === 0) downL = true;
+        if (e.button === 2) downR = true;
+        setFace("oh");
+        if (!("ontouchstart" in window)) pressUnder(e.clientX, e.clientY);
+    });
+
+    document.addEventListener("mouseup", () => {
+        downL = false; downR = false;
+        if (over) { setFace("dead"); return; }
+        setFace("normal");
+    });
+
+    boardEl.addEventListener("click", e => {
+        const cell = e.target.closest(".cell");
+        if (!cell || over) return;
+        reveal(parseInt(cell.dataset.i, 10));
+    });
+
+    boardEl.addEventListener("dblclick", e => {
+        const cell = e.target.closest(".cell");
+        if (!cell || over) return;
+        chord(parseInt(cell.dataset.i, 10));
+    });
+
+    boardEl.addEventListener("auxclick", e => {
+        const cell = e.target.closest(".cell");
+        if (!cell || over) return;
+        if (e.button === 1) chord(parseInt(cell.dataset.i, 10));
+    });
+
+    boardEl.addEventListener("mousemove", e => {
+        if ((downL || downR) && !("ontouchstart" in window)) pressUnder(e.clientX, e.clientY);
+    });
+
+    boardEl.addEventListener("mouseup", e => {
+        const cell = e.target.closest(".cell");
+        const wasChord = downL && downR;
+        clearPress();
+        if (!cell || over) return;
+        const i = parseInt(cell.dataset.i, 10);
+        if (e.button === 2) cycleFlag(i);
+        else if (wasChord || e.button === 1) chord(i);
+        else if (e.button === 0) reveal(i);
+    });
+
+    let lpTimer = null, lpFired = false;
+    boardEl.addEventListener("touchstart", e => {
+        const cell = e.target.closest(".cell");
+        if (!cell || over) return;
+        lpFired = false;
+        lpTimer = setTimeout(() => {
+            lpFired = true;
+            cycleFlag(parseInt(cell.dataset.i, 10));
+        }, 350);
+    }, { passive: true });
+    boardEl.addEventListener("touchmove", () => { clearTimeout(lpTimer); }, { passive: true });
+    boardEl.addEventListener("touchend", e => {
+        clearTimeout(lpTimer);
+        if (lpFired) e.preventDefault();
+    });
+    boardEl.addEventListener("click", e => {
+        if (lpFired) { lpFired = false; e.stopImmediatePropagation(); }
+    }, true);
+
+    let pressedEls = [];
+
+    function clearPress() {
+        pressedEls.forEach(el => el.classList.remove("pressed"));
+        pressedEls = [];
+    }
+
+    function pressCell(i) {
+        const el = boardEl.children[i];
+        if (el && !openArr[i] && flagArr[i] === 0) { el.classList.add("pressed"); pressedEls.push(el); }
+    }
+
+    function pressUnder(x, y) {
+        clearPress();
+        if (over) return;
+        const el = document.elementFromPoint(x, y);
+        const cell = el && el.closest ? el.closest(".cell") : null;
+        if (!cell) return;
+        const i = parseInt(cell.dataset.i, 10);
+        if ((downL && downR) && openArr[i]) neighbors(i).forEach(j => pressCell(j));
+        else pressCell(i);
+    }
+
+    const frameEl = document.querySelector(".frame");
+    let dragOn = null, winMax = false;
+    $("titlebar").addEventListener("mousedown", e => {
+        if (e.target.closest(".tbtn") || winMax) return;
+        const r = frameEl.getBoundingClientRect();
+        dragOn = { el: frameEl, dx: e.clientX - r.left, dy: e.clientY - r.top };
+        e.preventDefault();
+    });
+    document.addEventListener("mousemove", e => {
+        if (!dragOn) return;
+        const el = dragOn.el;
+        el.style.position = "fixed";
+        el.style.left = Math.max(0, e.clientX - dragOn.dx) + "px";
+        el.style.top = Math.max(0, e.clientY - dragOn.dy) + "px";
+        el.style.margin = "0";
+    });
+    document.addEventListener("mouseup", () => { dragOn = null; });
+
+    function resetFramePos() {
+        frameEl.style.position = "";
+        frameEl.style.left = "";
+        frameEl.style.top = "";
+        frameEl.style.margin = "";
+    }
+
+    $("tMin").addEventListener("click", () => {
+        frameEl.style.display = "none";
+        $("taskItem").classList.add("inactive");
+    });
+
+    $("tMax").addEventListener("click", () => {
+        winMax = !winMax;
+        frameEl.classList.toggle("maximized", winMax);
+        resetFramePos();
+        layoutBoard();
+    });
+
+    $("tClose").addEventListener("click", () => {
+        frameEl.style.display = "none";
+        $("taskItem").classList.add("inactive");
+        codeFrame.style.display = "";
+        $("taskCode").classList.remove("inactive");
+        loadCode();
+    });
+
+    let toastTimer = null;
+    function showToast(msg) {
+        let t = $("toast");
+        if (!t) {
+            t = document.createElement("div");
+            t.id = "toast";
+            t.className = "toast";
+            document.body.appendChild(t);
+        }
+        t.textContent = msg;
+        t.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+    }
+
+    $("taskItem").addEventListener("click", () => {
+        frameEl.style.display = "";
+        $("taskItem").classList.remove("inactive");
+        layoutBoard();
+    });
+    $("taskItem").innerHTML = IMG(URL_MINE) + " Minesweeper";
+
+    const codeFrame = $("codeFrame");
+
+    let srcOriginal = "";
+
+    function loadCode() {
+        const el = $("codeView");
+        if (el.dataset.loaded) return;
+        fetch(location.href)
+            .then(r => r.ok ? r.text() : Promise.reject(new Error(r.status)))
+            .then(t => { el.value = t; srcOriginal = t; el.dataset.loaded = "1"; })
+            .catch(() => {
+                el.value = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+                srcOriginal = el.value;
+                el.dataset.loaded = "1";
+            });
+    }
+
+    const previewFrameEl = $("previewFrame");
+
+    $("previewTitle").addEventListener("mousedown", e => {
+        if (e.target.closest(".tbtn")) return;
+        const r = previewFrameEl.getBoundingClientRect();
+        dragOn = { el: previewFrameEl, dx: e.clientX - r.left, dy: e.clientY - r.top };
+        e.preventDefault();
+    });
+
+    $("previewClose").addEventListener("click", () => {
+        previewFrameEl.style.display = "none";
+        $("previewBody").innerHTML = "";
+    });
+
+    $("runBtn").addEventListener("click", () => {
+        const code = $("codeView").value;
+        if (srcOriginal && code === srcOriginal) {
+            frameEl.style.display = "";
+            $("taskItem").classList.remove("inactive");
+            layoutBoard();
+            return;
+        }
+        const body = $("previewBody");
+        body.innerHTML = "";
+        const f = document.createElement("iframe");
+        f.srcdoc = code;
+        body.appendChild(f);
+        const tm = code.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+        $("previewName").textContent = (tm && tm[1].trim()) || "unnamed";
+        previewFrameEl.style.display = "";
+        showToast("Running in preview window, click ✕ to close");
+    });
+
+    function hideCode() {
+        codeFrame.style.display = "none";
+        $("taskCode").classList.add("inactive");
+    }
+    $("codeMin").addEventListener("click", hideCode);
+    $("codeClose").addEventListener("click", hideCode);
+
+    $("taskCode").addEventListener("click", () => {
+        const show = codeFrame.style.display === "none";
+        codeFrame.style.display = show ? "" : "none";
+        $("taskCode").classList.toggle("inactive", !show);
+        if (show) loadCode();
+    });
+
+    $("startBtn").addEventListener("click", e => {
+        e.stopPropagation();
+        menuBox.style.position = "fixed";
+        menuBox.style.left = "6px";
+        menuBox.style.top = "auto";
+        menuBox.style.bottom = "42px";
+        menuBox.classList.add("show");
+    });
+    menuBtn.addEventListener("click", () => {
+        menuBox.style.position = "";
+        menuBox.style.left = "";
+        menuBox.style.top = "";
+        menuBox.style.bottom = "";
+    });
+
+    function tickClock() {
+        const d = new Date();
+        $("clock").textContent =
+            String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+    }
+    tickClock();
+    setInterval(tickClock, 15000);
+
+    applyNight();
+    init(true);
+</script>
+</body>
+</html>
